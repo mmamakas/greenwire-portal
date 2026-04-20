@@ -69,6 +69,14 @@ p{margin:6px 0 0;color:#a8b0be;font-size:14px}
 </ul>
 <div class="last-updated" id="tl-updated"></div>
 </div>
+
+<div class="status-card">
+<h3>Slide Backups <span class="count" id="slide-count">-</span> <button class="refresh-btn" onclick="loadSlide()">↻</button></h3>
+<ul class="ticket-list" id="slide-backups">
+<li class="loading">Loading backups...</li>
+</ul>
+<div class="last-updated" id="slide-updated"></div>
+</div>
 </div>
 
 <h2>Communications</h2>
@@ -113,7 +121,6 @@ p{margin:6px 0 0;color:#a8b0be;font-size:14px}
 </div>
 
 <script>
-// Fetch from Worker API (centralized, keeps keys secure)
 const API_BASE = '/api';
 
 async function loadTickets() {
@@ -225,11 +232,62 @@ async function loadThreatLocker() {
   }
 }
 
-// Auto-load on page load
+async function loadSlide() {
+  const el = document.getElementById('slide-backups');
+  const countEl = document.getElementById('slide-count');
+  const updatedEl = document.getElementById('slide-updated');
+  el.innerHTML = '<li class="loading">Loading...</li>';
+  
+  try {
+    const res = await fetch(`${API_BASE}/slide`);
+    const data = await res.json();
+    
+    if (data.error) {
+      el.innerHTML = `<li class="error">${data.error}</li>`;
+      return;
+    }
+    
+    const failed = data.failed || [];
+    const offline = data.offline || [];
+    const total = failed.length + offline.length;
+    
+    countEl.textContent = total;
+    countEl.className = 'count ' + (total > 0 ? 'alert' : 'ok');
+    
+    if (total === 0) {
+      el.innerHTML = '<li class="empty">All backups healthy</li>';
+    } else {
+      let html = '';
+      if (failed.length > 0) {
+        html += failed.slice(0, 5).map(f => `
+          <li class="priority-high">
+            <span class="ticket-id">FAILED</span>
+            <span class="ticket-subject">${f.computer_name || f.name || 'Unknown'}</span>
+            <span class="ticket-customer">${f.customer_name || 'Unknown customer'}</span>
+          </li>
+        `).join('');
+      }
+      if (offline.length > 0) {
+        html += offline.slice(0, 5).map(o => `
+          <li class="priority-medium">
+            <span class="ticket-id">OFFLINE</span>
+            <span class="ticket-subject">${o.computer_name || o.name || 'Unknown'}</span>
+            <span class="ticket-customer">${o.customer_name || 'Unknown customer'}</span>
+          </li>
+        `).join('');
+      }
+      el.innerHTML = html;
+    }
+    updatedEl.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+  } catch (e) {
+    el.innerHTML = `<li class="error">Failed to load: ${e.message}</li>`;
+  }
+}
+
 loadTickets();
 loadHuntress();
 loadThreatLocker();
+loadSlide();
 
-// Refresh every 5 minutes
-setInterval(() => { loadTickets(); loadHuntress(); loadThreatLocker(); }, 300000);
+setInterval(() => { loadTickets(); loadHuntress(); loadThreatLocker(); loadSlide(); }, 300000);
 </script>

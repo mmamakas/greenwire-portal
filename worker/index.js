@@ -1,9 +1,10 @@
 // Greenwire Portal API Worker
-// Handles secure API calls to Syncro, Huntress, ThreatLocker
+// Handles secure API calls to Syncro, Huntress, ThreatLocker, Slide
 
 const SYNCRO_API_KEY = ''; // Add your Syncro API key
 const HUNTRESS_API_KEY = ''; // Add your Huntress API key  
 const THREATLOCKER_API_KEY = ''; // Add your ThreatLocker API key
+const SLIDE_API_KEY = ''; // Add your Slide API key
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,6 +27,8 @@ async function handleRequest(request) {
       return await getHuntressAlerts();
     } else if (path === '/api/threatlocker') {
       return await getThreatLockerRequests();
+    } else if (path === '/api/slide') {
+      return await getSlideBackups();
     } else if (path === '/api/health') {
       return json({ status: 'ok' });
     } else {
@@ -50,7 +53,6 @@ async function getSyncroTickets() {
     });
     
     if (!res.ok) {
-      const err = await res.text();
       return json({ tickets: [], error: `Syncro error: ${res.status}` });
     }
     
@@ -106,6 +108,37 @@ async function getThreatLockerRequests() {
     return json({ requests: (data.requests || data).slice(0, 10) });
   } catch (e) {
     return json({ requests: [], error: e.message });
+  }
+}
+
+async function getSlideBackups() {
+  if (!SLIDE_API_KEY) {
+    return json({ failed: [], offline: [], error: 'Slide API key not configured' });
+  }
+
+  try {
+    // Slide API - get agents/devices
+    const res = await fetch('https://api.slide.tech/v1/devices', {
+      headers: {
+        'Authorization': `Bearer ${SLIDE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!res.ok) {
+      return json({ failed: [], offline: [], error: `Slide error: ${res.status}` });
+    }
+    
+    const data = await res.json();
+    const devices = data.devices || data || [];
+    
+    // Filter failed and offline
+    const failed = devices.filter(d => d.backup_status === 'failed' || d.status === 'failed');
+    const offline = devices.filter(d => d.backup_status === 'offline' || d.status === 'offline' || d.online === false);
+    
+    return json({ failed: failed.slice(0, 10), offline: offline.slice(0, 10) });
+  } catch (e) {
+    return json({ failed: [], offline: [], error: e.message });
   }
 }
 
