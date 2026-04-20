@@ -29,6 +29,8 @@ async function handleRequest(request) {
       return await getThreatLockerRequests();
     } else if (path === '/api/slide') {
       return await getSlideBackups();
+    } else if (path === '/api/rmm') {
+      return await getRMMAlerts();
     } else if (path === '/api/health') {
       return json({ status: 'ok' });
     } else {
@@ -139,6 +141,31 @@ async function getSlideBackups() {
     return json({ failed: failed.slice(0, 10), offline: offline.slice(0, 10) });
   } catch (e) {
     return json({ failed: [], offline: [], error: e.message });
+  }
+}
+
+async function getRMMAlerts() {
+  if (!SYNCRO_API_KEY) {
+    return json({ alerts: [], error: 'Syncro API key not configured' });
+  }
+
+  try {
+    // Syncro RMM alerts/incidents
+    const res = await fetch('https://api.syncromsp.com/api/v1/alerts?status=active&per_page=5', {
+      headers: {
+        'Authorization': SYNCRO_API_KEY,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!res.ok) {
+      return json({ alerts: [], error: `Syncro RMM error: ${res.status}` });
+    }
+    
+    const data = await res.json();
+    return json({ alerts: (data.alerts || data).slice(0, 5) });
+  } catch (e) {
+    return json({ alerts: [], error: e.message });
   }
 }
 

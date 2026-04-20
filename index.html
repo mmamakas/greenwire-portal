@@ -76,6 +76,16 @@ p{margin:6px 0 0;color:#a8b0be;font-size:14px}
 <li class="loading">Loading backups...</li>
 </ul>
 <div class="last-updated" id="slide-updated"></div>
+
+<div class="status-card">
+<h3>RMM Alerts <span class="count" id="rmm-count">-</span> <button class="refresh-btn" onclick="loadRMM()">↻</button></h3>
+<ul class="ticket-list" id="rmm-alerts">
+<li class="loading">Loading RMM alerts...</li>
+</ul>
+<div class="last-updated" id="rmm-updated"></div>
+</div>
+</div>
+
 </div>
 </div>
 
@@ -285,9 +295,49 @@ async function loadSlide() {
 }
 
 loadTickets();
+loadRMM();
 loadHuntress();
 loadThreatLocker();
+loadRMM();
 loadSlide();
 
-setInterval(() => { loadTickets(); loadHuntress(); loadThreatLocker(); loadSlide(); }, 300000);
+
+async function loadRMM() {
+  const el = document.getElementById("rmm-alerts");
+  const countEl = document.getElementById("rmm-count");
+  const updatedEl = document.getElementById("rmm-updated");
+  el.innerHTML = "<li class=\"loading\">Loading...</li>";
+  
+  try {
+    const res = await fetch(`${API_BASE}/rmm`);
+    const data = await res.json();
+    
+    if (data.error) {
+      el.innerHTML = `<li class=\"error\">${data.error}</li>`;
+      return;
+    }
+    
+    const alerts = data.alerts || [];
+    countEl.textContent = alerts.length;
+    countEl.className = "count " + (alerts.length > 0 ? "alert" : "ok");
+    
+    if (alerts.length === 0) {
+      el.innerHTML = "<li class=\"empty\">No RMM alerts</li>";
+    } else {
+      el.innerHTML = alerts.slice(0, 5).map(a => `
+        <li class=\"priority-${a.severity === "critical" || a.severity === "high" ? "high" : a.severity === "medium" ? "medium" : "low"}\">
+          <span class=\"ticket-id\">${a.severity || "Alert"}</span>
+          <span class=\"ticket-subject\">${a.message || a.name || "Alert"}</span>
+          <span class=\"ticket-customer\">${a.computer_name || a.device_name || "Unknown"}</span>
+        </li>
+      `).join("");
+    }
+    updatedEl.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+  } catch (e) {
+    el.innerHTML = `<li class=\"error\">Failed to load: ${e.message}</li>`;
+  }
+}
+setInterval(() => { loadTickets();
+loadRMM(); loadHuntress(); loadThreatLocker();
+loadSlide(); }, 300000);
 </script>
